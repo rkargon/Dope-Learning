@@ -11,6 +11,13 @@ print len(tracks[0])
 #NoteEvent
 print tracks[0][0]
 
+event = tracks[0][0]
+
+#get the note, can find out which one it is from table
+note = event.pitch
+
+print note
+
 
 
 
