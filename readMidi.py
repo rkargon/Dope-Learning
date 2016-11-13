@@ -4,7 +4,7 @@ import numpy as np
 import collections
 import math
 
-midiFile = midi.read_midifile('Dope-Learning-master/midik/1080-01.mid')
+midiFile = midi.read_midifile('midik/1080-01.mid')
 #print midiFile
 tracks = midiFile[1:len(midiFile)]
 #First track 
