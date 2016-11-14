@@ -174,15 +174,18 @@ pattern.append(track)
 trackWeAreOn = 0
 count = 0
 for i in range(len(tuples)):
-	count += 1
+	count += 2
+	if count > track_lengths[trackWeAreOn]:
+		track = midi.Track()
+		trackWeAreOn += 1
+		count = 0
+		print "here"
+		pattern.append(track)
 	tuplei = tuples[i]
 	on = midi.NoteOnEvent(tick = 0, velocity = 100, pitch = tuplei[0])
 	track.append(on)
 	off = midi.NoteOffEvent(tick = tuplei[1], pitch = tuplei[0])	
 	track.append(off)
-	if count == track_lengths[trackWeAreOn]-1:
-		track = midi.Track()
-		pattern.append(track)
 	
 eot = midi.EndOfTrackEvent(tick=1)
 track.append(eot)
