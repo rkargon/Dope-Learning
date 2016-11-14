@@ -1,2 +1,3 @@
+tensorflow
 python-midi==0.2.4
 
