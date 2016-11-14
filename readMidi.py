@@ -5,7 +5,7 @@ import collections
 import math
 import operator
 
-midiFile = midi.read_midifile('midik/1080-01.mid')
+midiFile = midi.read_midifile('Dope-Learning-master/midik/1080-01.mid')
 #print midiFile
 tracks = midiFile[1:len(midiFile)]
 #First track 
@@ -21,11 +21,14 @@ tracks = midiFile[1:len(midiFile)]
 
 #print note
 
-track0 = tracks[0]
-track0 = track0[0:len(track0)-1]
-for i in range(len(track0)):
-	noteEvent = track0[i]
-	track0[i] = (noteEvent.pitch, noteEvent.tick)
+allNotes = list()
+for j in range(len(tracks)):
+	track0 = tracks[j]
+	track0 = track0[0:len(track0)-1]
+	for i in range(len(track0)):
+		noteEvent = track0[i]
+		track0[i] = (noteEvent.pitch, noteEvent.tick)
+		allNotes.append(track0[i])
 
 notes = list()
 
@@ -36,13 +39,13 @@ notes = list()
 
 #print notes
 
-counter = collections.Counter(track0)
+counter = collections.Counter(allNotes)
 count_pairs = sorted(counter.items(), key = lambda x: (-x[1], x[0]))
 notes, _ = list(zip(*count_pairs))
 notes_to_id = dict(zip(notes, range(len(notes))))
 vocab_size = len(notes_to_id)
 
-train_notes_ids = [notes_to_id[note] for note in track0]
+train_notes_ids = [notes_to_id[note] for note in allNotes]
 
 batch_size = 5
 num_steps = 5
@@ -98,6 +101,7 @@ sess.run(init)
 state1 = sess.run(lstm.zero_state(batch_size, tf.float32))
 state2 = sess.run(lstm.zero_state(batch_size, tf.float32))
 for i in range(num_epochs):
+	print ('\n')
 	print ("Epoch %d!!!" % (i+1))	
 	total_error = 0.0
 	x = 0
@@ -169,4 +173,26 @@ while((x+batch_size*num_steps) < len(train_notes_ids)-1):
 
 print mostLikelyNotes
 print train_notes_ids
-		
+
+id_to_note = {v:k for k,v in notes_to_id.iteritems()}
+tuples = list()
+for i in range(len(mostLikelyNotes)):
+	tuples.append(id_to_note[mostLikelyNotes[i]])
+print tuples
+
+pattern = midi.Pattern()	
+track = midi.Track()
+pattern.append(track)
+
+for i in range(len(tuples)):
+	tuplei = tuples[i]
+	if(tuplei[1] == 0):
+		on = midi.NoteOnEvent(tick = 0, velocity = 100, pitch = tuplei[0])
+		track.append(on)
+	else:
+		off = midi.NoteOffEvent(tick = tuplei[1], pitch = tuplei[0])	
+		track.append(off)
+	
+eot = midi.EndOfTrackEvent(tick=1)
+track.append(eot)
+midi.write_midifile("output.mid", pattern)
