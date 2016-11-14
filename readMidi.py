@@ -6,38 +6,19 @@ import math
 import operator
 
 midiFile = midi.read_midifile('Dope-Learning-master/midik/1080-01.mid')
-#print midiFile
 tracks = midiFile[1:len(midiFile)]
-#First track 
-#print len(tracks[0])
-
-#NoteEvent
-#print tracks[0][0]
-
-#event = tracks[0][0]
-
-#get the note, can find out which one it is from table
-#note = event.pitch
-
-#print note
-
+track_lengths = list()
 allNotes = list()
 for j in range(len(tracks)):
 	track0 = tracks[j]
-	track0 = track0[0:len(track0)-1]
+	track_lengths.append(len(tracks[j]))
+	track0 = track0[1:len(track0)-1:2]
 	for i in range(len(track0)):
 		noteEvent = track0[i]
 		track0[i] = (noteEvent.pitch, noteEvent.tick)
 		allNotes.append(track0[i])
 
 notes = list()
-
-#print len(track0)
-#for i in range(0, len(track0)-1, 2):
-#	noteEvent = tracks[0][i]
-#	notes.append(noteEvent.pitch)
-
-#print notes
 
 counter = collections.Counter(allNotes)
 count_pairs = sorted(counter.items(), key = lambda x: (-x[1], x[0]))
@@ -93,7 +74,7 @@ loss = tf.reduce_sum(loss)
 loss = loss/tf.to_float(firstDim)
 train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
-num_epochs = 50
+num_epochs = 100
 init = tf.initialize_all_variables()
 sess = tf.Session()
 sess.run(init)
@@ -151,11 +132,16 @@ tmp = list()
 tmp.append(state2[0])
 tmp.append(state2[1])
 state2 = tmp
+previousNote = -1
 mostLikelyNotes = list()
 while((x+batch_size*num_steps) < len(train_notes_ids)-1):
 	count += num_steps
-	new_inputs= inputs[x:x+batch_size*num_steps]
-	new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
+	if(previousNote == -1):
+		new_inputs= inputs[x:x+batch_size*num_steps]
+		new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
+	else:
+		new_inputs = [max_index]
+		new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
 	new_outputs = outputs[x+1:x+batch_size*num_steps+1]
 	new_outputs = np.reshape(new_outputs, [batch_size, num_steps])
 	feed = {inpt: new_inputs, output: new_outputs, keep_prob: 1.0, init_state_0: state1[0], init_state_1: state1[1], init_state_2: state2[0], init_state_3: state2[1]}
@@ -170,6 +156,7 @@ while((x+batch_size*num_steps) < len(train_notes_ids)-1):
 	x += batch_size*num_steps
 	max_index = np.random.choice(range(len(probabilities)), p=probabilities)
 	mostLikelyNotes.append(max_index) 
+	previousNote = max_index
 
 print mostLikelyNotes
 print train_notes_ids
@@ -184,14 +171,18 @@ pattern = midi.Pattern()
 track = midi.Track()
 pattern.append(track)
 
+trackWeAreOn = 0
+count = 0
 for i in range(len(tuples)):
+	count += 1
 	tuplei = tuples[i]
-	if(tuplei[1] == 0):
-		on = midi.NoteOnEvent(tick = 0, velocity = 100, pitch = tuplei[0])
-		track.append(on)
-	else:
-		off = midi.NoteOffEvent(tick = tuplei[1], pitch = tuplei[0])	
-		track.append(off)
+	on = midi.NoteOnEvent(tick = 0, velocity = 100, pitch = tuplei[0])
+	track.append(on)
+	off = midi.NoteOffEvent(tick = tuplei[1], pitch = tuplei[0])	
+	track.append(off)
+	if count == track_lengths[trackWeAreOn]-1:
+		track = midi.Track()
+		pattern.append(track)
 	
 eot = midi.EndOfTrackEvent(tick=1)
 track.append(eot)
