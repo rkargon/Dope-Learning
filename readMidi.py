@@ -4,8 +4,13 @@ import numpy as np
 import collections
 import math
 import operator
+import sys
 
-midiFile = midi.read_midifile('Dope-Learning-master/midik/1080-01.mid')
+if len(sys.argv) != 2:
+  sys.stderr.write("usage: python2 readMidi.py <path-to-midi-file>\n")
+  sys.exit(1)
+
+midiFile = midi.read_midifile(sys.argv[1])
 #print midiFile
 tracks = midiFile[1:len(midiFile)]
 #First track 
