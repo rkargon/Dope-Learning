@@ -1,4 +1,5 @@
 #!/usr/bin/env python2.7
+import argparse
 import sys
 
 import midi
@@ -307,32 +308,40 @@ def max_consecutive_length(seq):
 
 
 def main():
-    # load trainin data
-    train_file_name = sys.argv[1]
-    pattern = midi.read_midifile(train_file_name)
+    # parse command line arguments
+    parser = argparse.ArgumentParser(description='A generative music model.')
+    parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
+    parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
+    parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
+    parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
+    parser.add_argument('--batch_size', type=int, default=5, help='Batch size for training music model')
+    parser.add_argument('--num_epochs', type=int, default=1000, help='Number of epochs for training music model')
+    parser.add_argument('--num_steps', type=int, default=20,
+                        help='Number of unrolling steps size for training music model')
+    args = parser.parse_args()
+
+    # load training data
+    training_files = args.train
+    first_train_file = training_files[0]
+    pattern = midi.read_midifile(first_train_file)
     tracks = pattern[1:]
     track0 = tracks[0]
     notes, vocab, vocab_reverse = preprocess_track(track0)
 
-    t = ([(i, 64, 64) for i in range(128)] + [(i, 64, 64) for i in range(127, 0, -1)]) * 50
-
-    # use rising scale as input, instead of training file
-    notes, vocab, vocab_reverse = build_vocabulary(t)
-
-    model = MusicModel(hidden_size=128, embedding_size=128, learning_rate=1e-4, vocab_size=len(vocab))
+    model = MusicModel(hidden_size=args.hidden_size, embedding_size=args.embedding_size,
+                       learning_rate=args.learning_rate, vocab_size=len(vocab))
 
     init = tf.initialize_all_variables()
     sess = tf.Session()
     sess.run(init)
 
-    train_model(sess, model, batch_size=5, num_epochs=50, num_steps=10, train_data=notes)
+    train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
+                train_data=notes)
     generated_notes = generate_music(sess, model, num_notes=len(notes), train_data=notes)
     print "Original Notes:"
     print notes
     print "Generated Notes:"
     print generated_notes
-    print "Max rising sequence length in training music:", max_consecutive_length(notes)
-    print "Max rising sequence length in generated music:", max_consecutive_length(generated_notes)
 
     gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
     output_pattern = notes_to_midi(gen_note_tuples)
