@@ -308,6 +308,10 @@ def max_consecutive_length(seq):
 
 def main():
     # load trainin data
+    if len(sys.argv) != 2:
+      sys.stderr.write("python2 music-model.py <train-midi-file>\n")
+      sys.exit(1)
+
     train_file_name = sys.argv[1]
     pattern = midi.read_midifile(train_file_name)
     tracks = pattern[1:]
@@ -317,7 +321,7 @@ def main():
     t = ([(i, 64, 64) for i in range(128)] + [(i, 64, 64) for i in range(127, 0, -1)]) * 50
 
     # use rising scale as input, instead of training file
-    notes, vocab, vocab_reverse = build_vocabulary(t)
+    #notes, vocab, vocab_reverse = build_vocabulary(t)
 
     model = MusicModel(hidden_size=128, embedding_size=128, learning_rate=1e-4, vocab_size=len(vocab))
 
