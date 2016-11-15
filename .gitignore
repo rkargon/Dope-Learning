@@ -87,3 +87,12 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# vim swap files:
+*.swp
+*.swo
+
+# project specific stuff:
+output.mid
+test.mid
+scratch.py
