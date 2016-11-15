@@ -47,17 +47,18 @@ class MusicModel:
         self.secondState = state[0][1]
         self.thirdState = state[1][0]
         self.fourthState = state[1][1]
-        dimensions = tf.slice(tf.shape(self.inpt), [0], [1])
-        firstDim = tf.reshape(dimensions, [])
-        dimensions = tf.slice(tf.shape(self.inpt), [1], [1])
-        secondDim = tf.reshape(dimensions, [])
-        reshapedOutput = tf.reshape(outputs, [firstDim * secondDim, hidden_size])
+        dimensions = tf.shape(self.inpt)
+        first_dim = tf.slice(dimensions, [0], [1])
+        first_dim = tf.reshape(first_dim, [])
+        second_dim = tf.slice(dimensions, [1], [1])
+        second_dim = tf.reshape(second_dim, [])
+        reshapedOutput = tf.reshape(outputs, [first_dim * second_dim, hidden_size])
         self.logits = tf.matmul(reshapedOutput, W1) + B1
 
         loss = tf.nn.seq2seq.sequence_loss_by_example([self.logits], [tf.reshape(self.output, [-1])],
-                                                      [tf.ones([firstDim * secondDim])])
+                                                      [tf.ones([first_dim * second_dim])])
         loss = tf.reduce_sum(loss)
-        self.loss = loss / tf.to_float(firstDim)
+        self.loss = loss / tf.to_float(first_dim)
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
 
@@ -84,21 +85,12 @@ def init_bias(shape, value, name):
     return tf.Variable(tf.constant(value, shape=[shape]), name=name)
 
 
-def preprocess_track(track, ids=None):
+def get_notes_from_track(track):
     """
-    Takes a MIDI track, maps them to a series of note tuples, and returns a list of their IDs (along with the mapping
-    of note -> ID)
+    Converts a single MIDI track to a sequence of note tuples
     :param track: A MIDI track
-    :param ids: An existing note->ID mapping can be specified with a tuple (vocab, vocab_reverse).
-    :return: The track as a sequence of note IDs, a dictionary mapping notes to IDs, and a list where each note's ID
-    is its index.
+    :return: A series of tuples (pitch, velocity, duration)
     """
-    if ids is None:
-        note_vocab = {}
-        note_vocab_reverse = []
-    else:
-        note_vocab, note_vocab_reverse = ids
-
     note_sequence = []
     prev_event_type = None
     tick = 0
@@ -115,12 +107,41 @@ def preprocess_track(track, ids=None):
 
         if type(event) == midi.NoteOffEvent and prev_event_type == midi.NoteOnEvent:
             note_tuple = (event.pitch, event.velocity, event.tick)
-            note_id = id_from_token(note_tuple, note_vocab, note_vocab_reverse)
-            note_sequence.append(note_id)
+            note_sequence.append(note_tuple)
 
         prev_event_type = type(event)
         tick += event.tick
-    return note_sequence, note_vocab, note_vocab_reverse
+    return note_sequence
+
+
+def preprocess_track(track, ids=None):
+    """
+    Takes a MIDI track, maps them to a series of note tuples, and returns a list of their IDs (along with the mapping
+    of note -> ID)
+    :param track: A MIDI track
+    :param ids: An existing note->ID mapping can be specified with a tuple (vocab, vocab_reverse).
+    :return: The track as a sequence of note IDs, a dictionary mapping notes to IDs, and a list where each note's ID
+    is its index.
+    """
+    return build_vocabulary(get_notes_from_track(track), ids=ids)
+
+
+def build_vocabulary(tokens, ids=None):
+    """
+    Given a list of tokens, maps them to unique IDs. This is done by keeping a counter, and incrementing it each time
+    a new unique token is found.
+    :param tokens: A list of objects.
+    :param ids: An optional existing vocabulary of IDs specified as a tuple (vocab, vocab_reverse).
+    :return: (ids_sequence, vocab, vocab_reverse) The sequence of ids for each object,
+    """
+    if ids is None:
+        vocab = {}
+        vocab_reverse = []
+    else:
+        vocab, vocab_reverse = ids
+
+    ids_sequence = [id_from_token(t, vocab, vocab_reverse) for t in tokens]
+    return ids_sequence, vocab, vocab_reverse
 
 
 def id_from_token(t, vocab, vocab_reverse):
@@ -183,12 +204,19 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
                 [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits,
                  model.train_step], feed)
             total_error += err
-            print np.exp(total_error / count)
 
 
 # TODO this shares a lot of code with training, we might be able to abstract some of this out
 # TODO we shouldn't use train_data in here
 def generate_music(sess, model, num_notes, train_data):
+    """
+    Uses a trained model to generate notes of mmusic one by one.
+    :param sess: The tensorflow session with which to run the model
+    :param model: The given music model
+    :param num_notes: The number of notes to generate
+    :param train_data:
+    :return:
+    """
     inputs = train_data[0:len(train_data) - 1]
     outputs = train_data[1:len(train_data)]
     batch_size = 1
@@ -206,11 +234,17 @@ def generate_music(sess, model, num_notes, train_data):
     tmp.append(state2[0])
     tmp.append(state2[1])
     state2 = tmp
-    mostLikelyNotes = list()
+    previous_note = -1
+    max_index = None
+    most_likely_notes = list()
     while (x + batch_size * num_steps) < num_notes - 1:
         count += num_steps
-        new_inputs = inputs[x:x + batch_size * num_steps]
-        new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
+        if previous_note == -1:
+            new_inputs = inputs[x:x + batch_size * num_steps]
+            new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
+        else:
+            new_inputs = [max_index]
+            new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
         new_outputs = outputs[x + 1:x + batch_size * num_steps + 1]
         new_outputs = np.reshape(new_outputs, [batch_size, num_steps])
         feed = {model.inpt: new_inputs, model.output: new_outputs, model.keep_prob: 1.0, model.init_state_0: state1[0],
@@ -219,38 +253,91 @@ def generate_music(sess, model, num_notes, train_data):
         err, state1[0], state1[1], state2[0], state2[1], probabilities = sess.run(
             [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits], feed)
         total_error += err
-        print np.exp(total_error / count)
+
         probabilities = np.exp(probabilities)
         probabilities = probabilities[0]
         magnitude = sum(probabilities)
         probabilities = probabilities / magnitude
-        print probabilities
+
         x += batch_size * num_steps
         max_index = np.random.choice(range(len(probabilities)), p=probabilities)
-        mostLikelyNotes.append(max_index)
+        most_likely_notes.append(max_index)
+        previous_note = max_index
 
-    return mostLikelyNotes
+    return most_likely_notes
+
+
+def notes_to_midi(notes):
+    """
+    Given a set of note tuples, creates a MIDI pattern with the notes in a single track.
+    :param notes: A series of note tuples (pitch, velocity, duration)
+    :return: A MIDI pattern
+    """
+    pattern = midi.Pattern()
+    track = midi.Track()
+    pattern.append(track)
+
+    for i in range(len(notes)):
+        pitch, velocity, tick = notes[i]
+        track.append(midi.NoteOnEvent(pitch=pitch, velocity=velocity, tick=0))
+        track.append(midi.NoteOffEvent(pitch=pitch, velocity=velocity, tick=tick))
+
+    eot = midi.EndOfTrackEvent(tick=1)
+    track.append(eot)
+    return pattern
+
+
+def max_consecutive_length(seq):
+    """
+    Counts the length of the longest continuously rising (in increments of 1) subsequence in a given sequence
+    :param seq: A sequence of integers
+    :return: The length of the longest continuously rising subsequence
+    """
+    max_length = 1
+    current_length = 1
+    for i in range(1, len(seq)):
+        if seq[i] == seq[i - 1] + 1:
+            current_length += 1
+        else:
+            max_length = max(max_length, current_length)
+            current_length = 1
+
+    max_length = max(max_length, current_length)
+    return max_length
 
 
 def main():
-    # TODO for now we're training on a single song
+    # load trainin data
     train_file_name = sys.argv[1]
     pattern = midi.read_midifile(train_file_name)
     tracks = pattern[1:]
     track0 = tracks[0]
     notes, vocab, vocab_reverse = preprocess_track(track0)
+
+    t = ([(i, 64, 64) for i in range(128)] + [(i, 64, 64) for i in range(127, 0, -1)]) * 50
+
+    # use rising scale as input, instead of training file
+    notes, vocab, vocab_reverse = build_vocabulary(t)
+
     model = MusicModel(hidden_size=128, embedding_size=128, learning_rate=1e-4, vocab_size=len(vocab))
 
     init = tf.initialize_all_variables()
     sess = tf.Session()
     sess.run(init)
 
-    train_model(sess, model, batch_size=5, num_epochs=50, num_steps=5, train_data=notes)
+    train_model(sess, model, batch_size=5, num_epochs=50, num_steps=10, train_data=notes)
     generated_notes = generate_music(sess, model, num_notes=len(notes), train_data=notes)
     print "Original Notes:"
     print notes
     print "Generated Notes:"
     print generated_notes
+    print "Max rising sequence length in training music:", max_consecutive_length(notes)
+    print "Max rising sequence length in generated music:", max_consecutive_length(generated_notes)
+
+    gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
+    output_pattern = notes_to_midi(gen_note_tuples)
+    print output_pattern[0][:6]
+    midi.write_midifile("output.mid", output_pattern)
 
 
 if __name__ == '__main__':
