@@ -96,3 +96,5 @@ ENV/
 output.mid
 test.mid
 scratch.py
+
+.idea
