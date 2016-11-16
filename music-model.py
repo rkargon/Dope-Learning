@@ -164,52 +164,51 @@ def id_from_token(t, vocab, vocab_reverse):
         return t_id
 
 
-# TODO training data could be a list of tracks, so we can train on multiple files
 def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     """
     Trains a music model on the given data, within the given tensorflow session.
     :param sess: The tensorflow session to use
     :param model: The given model to train
-    :param train_data: Data on which to train, as a sequence of note IDs
+    :param train_data: A list of tracks where each track is a list of note IDs
     :param num_epochs: The number of epochs to run on the training data
     :param batch_size: The batch size
     :param num_steps: The number of steps to unroll the RNN in training
     """
     for i in range(num_epochs):
         print ("Epoch %d!!!" % (i + 1))
-        total_error = 0.0
-        x = 0
-        count = 0
-        state1 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-        tmp = list()
-        tmp.append(state1[0])
-        tmp.append(state1[1])
-        state1 = tmp
-        state2 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-        tmp2 = list()
-        tmp2.append(state2[0])
-        tmp2.append(state2[1])
-        state2 = tmp2
-        while (x + batch_size * num_steps) < len(train_data):
-            count += num_steps
-            inputs = train_data[x:x + batch_size * num_steps]
-            inputs = np.reshape(inputs, [batch_size, num_steps])
-            outputs = train_data[x + 1:x + batch_size * num_steps + 1]
-            outputs = np.reshape(outputs, [batch_size, num_steps])
-            x += batch_size * num_steps
-            feed = {model.inpt: inputs, model.output: outputs, model.keep_prob: 0.5, model.init_state_0: state1[0],
-                    model.init_state_1: state1[1],
-                    model.init_state_2: state2[0], model.init_state_3: state2[1]}
+        for track in train_data:
+            total_error = 0.0
+            x = 0
+            # TODO clean up this zest?
+            state1 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
+            tmp = list()
+            tmp.append(state1[0])
+            tmp.append(state1[1])
+            state1 = tmp
+            state2 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
+            tmp2 = list()
+            tmp2.append(state2[0])
+            tmp2.append(state2[1])
+            state2 = tmp2
+            while (x + batch_size * num_steps) < len(track):
+                inputs = track[x:x + batch_size * num_steps]
+                inputs = np.reshape(inputs, [batch_size, num_steps])
+                outputs = track[x + 1:x + batch_size * num_steps + 1]
+                outputs = np.reshape(outputs, [batch_size, num_steps])
+                x += batch_size * num_steps
+                feed = {model.inpt: inputs, model.output: outputs, model.keep_prob: 0.5, model.init_state_0: state1[0],
+                        model.init_state_1: state1[1],
+                        model.init_state_2: state2[0], model.init_state_3: state2[1]}
 
-            err, state1[0], state1[1], state2[0], state2[1], probabilities, _ = sess.run(
-                [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits,
-                 model.train_step], feed)
-            total_error += err
+                err, state1[0], state1[1], state2[0], state2[1], probabilities, _ = sess.run(
+                    [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits,
+                     model.train_step], feed)
+                total_error += err
 
 
 # TODO this shares a lot of code with training, we might be able to abstract some of this out
-# TODO we shouldn't use train_data in here
-def generate_music(sess, model, num_notes, train_data):
+# TODO only first note of note_context is used right now
+def generate_music(sess, model, num_notes, note_context):
     """
     Uses a trained model to generate notes of mmusic one by one.
     :param sess: The tensorflow session with which to run the model
@@ -218,13 +217,10 @@ def generate_music(sess, model, num_notes, train_data):
     :param train_data:
     :return:
     """
-    inputs = train_data[0:len(train_data) - 1]
-    outputs = train_data[1:len(train_data)]
     batch_size = 1
     num_steps = 1
     x = 0
     count = 0
-    total_error = 0.0
     state1 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
     tmp = list()
     tmp.append(state1[0])
@@ -240,20 +236,20 @@ def generate_music(sess, model, num_notes, train_data):
     most_likely_notes = list()
     while (x + batch_size * num_steps) < num_notes - 1:
         count += num_steps
+        print "****", x
         if previous_note == -1:
-            new_inputs = inputs[x:x + batch_size * num_steps]
+            new_inputs = note_context[x:x + batch_size * num_steps]
             new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
         else:
             new_inputs = [max_index]
             new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
-        new_outputs = outputs[x + 1:x + batch_size * num_steps + 1]
-        new_outputs = np.reshape(new_outputs, [batch_size, num_steps])
-        feed = {model.inpt: new_inputs, model.output: new_outputs, model.keep_prob: 1.0, model.init_state_0: state1[0],
+        # new_outputs = outputs[x + 1:x + batch_size * num_steps + 1]
+        # new_outputs = np.reshape(new_outputs, [batch_size, num_steps])
+        feed = {model.inpt: new_inputs, model.keep_prob: 1.0, model.init_state_0: state1[0],
                 model.init_state_1: state1[1],
                 model.init_state_2: state2[0], model.init_state_3: state2[1]}
-        err, state1[0], state1[1], state2[0], state2[1], probabilities = sess.run(
-            [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits], feed)
-        total_error += err
+        state1[0], state1[1], state2[0], state2[1], probabilities = sess.run(
+            [model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits], feed)
 
         probabilities = np.exp(probabilities)
         probabilities = probabilities[0]
@@ -315,18 +311,23 @@ def main():
     parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
     parser.add_argument('--batch_size', type=int, default=5, help='Batch size for training music model')
-    parser.add_argument('--num_epochs', type=int, default=1000, help='Number of epochs for training music model')
+    parser.add_argument('--num_epochs', type=int, default=100, help='Number of epochs for training music model')
     parser.add_argument('--num_steps', type=int, default=20,
                         help='Number of unrolling steps size for training music model')
     args = parser.parse_args()
 
     # load training data
+    vocab, vocab_reverse = {}, []
+    # list of tracks, each track will be a list of note IDs
+    training_data = []
     training_files = args.train
-    first_train_file = training_files[0]
-    pattern = midi.read_midifile(first_train_file)
-    tracks = pattern[1:]
-    track0 = tracks[0]
-    notes, vocab, vocab_reverse = preprocess_track(track0)
+    for f in training_files:
+        pattern = midi.read_midifile(f)
+        tracks = pattern[1:]
+        # TODO currently we're only getting the first track
+        track0 = tracks[0]
+        notes, vocab, vocab_reverse = preprocess_track(track0, ids=(vocab, vocab_reverse))
+        training_data.append(notes)
 
     model = MusicModel(hidden_size=args.hidden_size, embedding_size=args.embedding_size,
                        learning_rate=args.learning_rate, vocab_size=len(vocab))
@@ -336,10 +337,10 @@ def main():
     sess.run(init)
 
     train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
-                train_data=notes)
-    generated_notes = generate_music(sess, model, num_notes=len(notes), train_data=notes)
-    print "Original Notes:"
-    print notes
+                train_data=training_data)
+    generated_notes = generate_music(sess, model, num_notes=100, note_context=training_data[0])
+    print "Original Notes (first training track):"
+    print training_data[0]
     print "Generated Notes:"
     print generated_notes
 
