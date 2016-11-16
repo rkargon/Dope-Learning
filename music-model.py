@@ -175,7 +175,7 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     :param num_steps: The number of steps to unroll the RNN in training
     """
     for i in range(num_epochs):
-        print ("Epoch %d!!!" % (i + 1))
+        print ("Epoch %d of %d" % (i + 1, num_epochs))
         total_error = 0.0
         x = 0
         count = 0
@@ -329,7 +329,7 @@ def main():
     sess = tf.Session()
     sess.run(init)
 
-    train_model(sess, model, batch_size=5, num_epochs=50, num_steps=10, train_data=notes)
+    train_model(sess, model, batch_size=5, num_epochs=500, num_steps=25, train_data=notes)
     generated_notes = generate_music(sess, model, num_notes=len(notes), train_data=notes)
     print "Original Notes:"
     print notes
@@ -340,6 +340,7 @@ def main():
 
     gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
     output_pattern = notes_to_midi(gen_note_tuples)
+    print "%d notes generated"%len(output_pattern)
     print output_pattern[0][:6]
     midi.write_midifile("output.mid", output_pattern)
 
