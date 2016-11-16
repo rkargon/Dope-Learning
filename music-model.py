@@ -179,17 +179,8 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
         for track in train_data:
             total_error = 0.0
             x = 0
-            # TODO clean up this zest?
-            state1 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-            tmp = list()
-            tmp.append(state1[0])
-            tmp.append(state1[1])
-            state1 = tmp
-            state2 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-            tmp2 = list()
-            tmp2.append(state2[0])
-            tmp2.append(state2[1])
-            state2 = tmp2
+            state1 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
+            state2 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
             while (x + batch_size * num_steps) < len(track):
                 inputs = track[x:x + batch_size * num_steps]
                 inputs = np.reshape(inputs, [batch_size, num_steps])
@@ -214,23 +205,15 @@ def generate_music(sess, model, num_notes, note_context):
     :param sess: The tensorflow session with which to run the model
     :param model: The given music model
     :param num_notes: The number of notes to generate
-    :param train_data:
-    :return:
+    :param note_context: A context of notes to feed into the model before generating new ones
+    :return: A series of generated note IDs
     """
     batch_size = 1
     num_steps = 1
     x = 0
     count = 0
-    state1 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-    tmp = list()
-    tmp.append(state1[0])
-    tmp.append(state1[1])
-    state1 = tmp
-    state2 = sess.run(model.lstm.zero_state(batch_size, tf.float32))
-    tmp = list()
-    tmp.append(state2[0])
-    tmp.append(state2[1])
-    state2 = tmp
+    state1 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
+    state2 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
     previous_note = -1
     max_index = None
     most_likely_notes = list()
