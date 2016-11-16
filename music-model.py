@@ -219,7 +219,6 @@ def generate_music(sess, model, num_notes, note_context):
     most_likely_notes = list()
     while (x + batch_size * num_steps) < num_notes - 1:
         count += num_steps
-        print "****", x
         if previous_note == -1:
             new_inputs = note_context[x:x + batch_size * num_steps]
             new_inputs = np.reshape(new_inputs, [batch_size, num_steps])
