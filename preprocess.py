@@ -4,6 +4,7 @@ Functions for converting between MIDI data and formats used by the music model, 
 
 import midi
 
+# TODO store notes in a class? This could unify the definition and make things clearer
 
 def get_notes_from_track(track):
     """
