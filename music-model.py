@@ -208,8 +208,11 @@ def main():
     # list of tracks, each track will be a list of note IDs
     training_data = []
     training_files = args.train
+    track_resolution = None
     for f in training_files:
         pattern = midi.read_midifile(f)
+        if track_resolution is not None:
+            track_resolution = pattern.resolution
         tracks = pattern[1:]
         # TODO currently we're only getting the first track
         track0 = tracks[0]
@@ -232,9 +235,11 @@ def main():
     print generated_notes
 
     gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
-    output_pattern = notes_to_midi(gen_note_tuples)
-    print output_pattern[0][:6]
-    midi.write_midifile("output.mid", output_pattern)
+    output_pattern = notes_to_midi(gen_note_tuples, resolution=track_resolution)
+    midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
+    # midi.write_midifile("output.mid", output_pattern)
+    midi.write_midifile("output.mid", midi_pattern)
+    print midi_pattern[0][:10]
 
 
 if __name__ == '__main__':

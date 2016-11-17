@@ -83,13 +83,17 @@ def id_from_token(t, vocab, vocab_reverse):
         return t_id
 
 
-def notes_to_midi(notes):
+def notes_to_midi(notes, resolution=None):
     """
     Given a set of note tuples, creates a MIDI pattern with the notes in a single track.
+    :param resolution: The resolution for the created MIDI pattern. If None, uses pyMIDI's default value.
     :param notes: A series of note tuples (pitch, velocity, duration)
     :return: A MIDI pattern
     """
-    pattern = midi.Pattern()
+    if resolution is not None:
+        pattern = midi.Pattern(resolution=resolution)
+    else:
+        pattern = midi.Pattern()
     track = midi.Track()
     pattern.append(track)
 
