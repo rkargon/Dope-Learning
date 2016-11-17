@@ -228,6 +228,7 @@ def main():
     sess = tf.Session()
     sess.run(init)
 
+    # train model and generate notes
     train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
                 train_data=training_data)
     generated_notes = generate_music(sess, model, num_notes=243, note_context=training_data[0])
@@ -239,17 +240,16 @@ def main():
     # write generated music to MIDI file
     gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
     output_pattern = notes_to_midi(gen_note_tuples, resolution=track_resolution)
-    midi.write_midifile("output.mid", output_pattern)
+    midi.write_midifile(args.output, output_pattern)
 
     # print stats for data
     print "Original, Generated Stats:"
     original_note_tuples = [vocab_reverse[t] for t in training_data[0]]
     print_note_stats(note_stats(original_note_tuples), note_stats(gen_note_tuples))
 
-    # midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
-    # midi.write_midifile("reconstructed.mid", midi_pattern)
-    # midi.write_midifile("original.mid", midi.Pattern([track0], resolution=track_resolution))
-    # print midi_pattern[0][:10]
+    # write reconstruction of original MIDI file to disk
+    midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
+    midi.write_midifile("reconstructed.mid", midi_pattern)
 
 
 if __name__ == '__main__':
