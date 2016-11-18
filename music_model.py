@@ -5,6 +5,7 @@ import midi
 import numpy as np
 import tensorflow as tf
 
+from note_stats import note_stats, print_note_stats
 from preprocess import preprocess_track, notes_to_midi
 
 
@@ -194,12 +195,13 @@ def main():
     parser = argparse.ArgumentParser(description='A generative music model.')
     parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
-    parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
-    parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
-    parser.add_argument('--batch_size', type=int, default=5, help='Batch size for training music model')
-    parser.add_argument('--num_epochs', type=int, default=100, help='Number of epochs for training music model')
-    parser.add_argument('--num_steps', type=int, default=20,
+    parser.add_argument('--embedding-size', type=int, default=128, help='Embedding size for music model')
+    parser.add_argument('--learning-rate', type=float, default=1e-4, help='Learning rate for training music model')
+    parser.add_argument('--batch-size', type=int, default=5, help='Batch size for training music model')
+    parser.add_argument('--num-epochs', type=int, default=100, help='Number of epochs for training music model')
+    parser.add_argument('--num-steps', type=int, default=25,
                         help='Number of unrolling steps size for training music model')
+    parser.add_argument('-o', '--output', type=argparse.FileType('w'), default='output.mid', help='file to write music output to.')
     args = parser.parse_args()
 
     # load training data
@@ -207,8 +209,11 @@ def main():
     # list of tracks, each track will be a list of note IDs
     training_data = []
     training_files = args.train
+    track_resolution = None
     for f in training_files:
         pattern = midi.read_midifile(f)
+        if track_resolution is None:
+            track_resolution = pattern.resolution
         tracks = pattern[1:]
         # TODO currently we're only getting the first track
         track0 = tracks[0]
@@ -222,19 +227,28 @@ def main():
     sess = tf.Session()
     sess.run(init)
 
+    # train model and generate notes
     train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
                 train_data=training_data)
-    generated_notes = generate_music(sess, model, num_notes=100, note_context=training_data[0])
+    generated_notes = generate_music(sess, model, num_notes=243, note_context=training_data[0])
     print "Original Notes (first training track):"
     print training_data[0]
     print "Generated Notes:"
     print generated_notes
 
+    # write generated music to MIDI file
     gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
-    output_pattern = notes_to_midi(gen_note_tuples)
-    print "%d notes generated"%len(output_pattern)
-    print output_pattern[0][:6]
-    midi.write_midifile("output.mid", output_pattern)
+    output_pattern = notes_to_midi(gen_note_tuples, resolution=track_resolution)
+    midi.write_midifile(args.output, output_pattern)
+
+    # print stats for data
+    print "Original, Generated Stats:"
+    original_note_tuples = [vocab_reverse[t] for t in training_data[0]]
+    print_note_stats(note_stats(original_note_tuples), note_stats(gen_note_tuples))
+
+    # write reconstruction of original MIDI file to disk
+    midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
+    midi.write_midifile("reconstructed.mid", midi_pattern)
 
 
 if __name__ == '__main__':
