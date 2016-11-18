@@ -103,7 +103,7 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     :param num_steps: The number of steps to unroll the RNN in training
     """
     for i in range(num_epochs):
-        print ("Epoch %d!!!" % (i + 1))
+        print ("Epoch %d of %d" % (i + 1, num_epochs))
         for track in train_data:
             total_error = 0.0
             x = 0
@@ -123,7 +123,6 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
                     [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits,
                      model.train_step], feed)
                 total_error += err
-
 
 # TODO this shares a lot of code with training, we might be able to abstract some of this out
 # TODO only first note of note_context is used right now
