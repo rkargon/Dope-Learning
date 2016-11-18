@@ -124,6 +124,7 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
                      model.train_step], feed)
                 total_error += err
 
+
 # TODO this shares a lot of code with training, we might be able to abstract some of this out
 # TODO only first note of note_context is used right now
 def generate_music(sess, model, num_notes, note_context):
@@ -192,7 +193,8 @@ def max_consecutive_length(seq):
 
 def main():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='A generative music model.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description='A generative music model.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
     parser.add_argument('--embedding-size', type=int, default=128, help='Embedding size for music model')
@@ -201,7 +203,8 @@ def main():
     parser.add_argument('--num-epochs', type=int, default=100, help='Number of epochs for training music model')
     parser.add_argument('--num-steps', type=int, default=25,
                         help='Number of unrolling steps size for training music model')
-    parser.add_argument('-o', '--output', type=argparse.FileType('w'), default='output.mid', help='file to write music output to.')
+    parser.add_argument('-o', '--output', type=argparse.FileType('w'), default='output.mid',
+                        help='file to write music output to.')
     args = parser.parse_args()
 
     # load training data
