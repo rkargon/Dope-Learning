@@ -193,7 +193,7 @@ def max_consecutive_length(seq):
 
 def main():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='A generative music model.')
+    parser = argparse.ArgumentParser(description='A generative music model.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
     parser.add_argument('--embedding-size', type=int, default=128, help='Embedding size for music model')
@@ -248,6 +248,7 @@ def main():
     print_note_stats(note_stats(original_note_tuples), note_stats(gen_note_tuples))
 
     # write reconstruction of original MIDI file to disk
+    print track_resolution
     midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
     midi.write_midifile("reconstructed.mid", midi_pattern)
 
