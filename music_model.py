@@ -191,20 +191,56 @@ def max_consecutive_length(seq):
     return max_length
 
 
+def save_model(sess, path, saver=None):
+    """
+    Saves a tensorflow session to the given path.
+    NOTE: This currently saves *all* variables in the session, unless one passes in a custom Saver object.
+    :param sess: The tensorflow session to save from
+    :param path: The path to store the saved data
+    :param saver: A custom saver object to use. This can be used to only save certain variables. If None,
+    creates a saver object that saves all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.save(sess, path)
+    return saver
+
+
+def restore_model(sess, path, saver=None):
+    """
+    Loads a tensorflow session from the given path.
+    NOTE: This currently loads *all* variables in the saved file, unless one passes in a custom Saver object.
+    :param sess: The tensorflow checkpoint to load from
+    :param path: The path to the saved data
+    :param saver: A custom saver object to use. This can be used to only load certain variables. If None,
+    creates a saver object that loads all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.restore(sess, path)
+    return saver
+
+
 def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='A generative music model.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
-    parser.add_argument('--embedding-size', type=int, default=128, help='Embedding size for music model')
-    parser.add_argument('--learning-rate', type=float, default=1e-4, help='Learning rate for training music model')
-    parser.add_argument('--batch-size', type=int, default=5, help='Batch size for training music model')
-    parser.add_argument('--num-epochs', type=int, default=100, help='Number of epochs for training music model')
-    parser.add_argument('--num-steps', type=int, default=25,
+    parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
+    parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
+    parser.add_argument('--batch_size', type=int, default=5, help='Batch size for training music model')
+    parser.add_argument('--num_epochs', type=int, default=100, help='Number of epochs for training music model')
+    parser.add_argument('--num_steps', type=int, default=25,
                         help='Number of unrolling steps size for training music model')
     parser.add_argument('-o', '--output', type=argparse.FileType('w'), default='output.mid',
                         help='file to write music output to.')
+    parser.add_argument('--model_load_path', type=str, default=None,
+                        help='file to load a saved model from.')
+    parser.add_argument('--model_save_path', type=str, default='model.ckpt',
+                        help='file to save a trained model to.')
     args = parser.parse_args()
 
     # load training data
@@ -230,9 +266,15 @@ def main():
     sess = tf.Session()
     sess.run(init)
 
-    # train model and generate notes
+    # train model
+    if args.model_load_path is not None:
+        restore_model(sess, args.model_load_path)
+
     train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
                 train_data=training_data)
+    save_model(sess, args.model_save_path)
+
+    # generate notes
     generated_notes = generate_music(sess, model, num_notes=243, note_context=training_data[0])
     print "Original Notes (first training track):"
     print training_data[0]
