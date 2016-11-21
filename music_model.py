@@ -33,9 +33,9 @@ class MusicModel:
         self.init_state_1 = tf.placeholder(tf.float32, [None, hidden_size])
         self.init_state_2 = tf.placeholder(tf.float32, [None, hidden_size])
         self.init_state_3 = tf.placeholder(tf.float32, [None, hidden_size])
-        firstTuple = tf.nn.rnn_cell.LSTMStateTuple(self.init_state_0, self.init_state_1)
-        secondTuple = tf.nn.rnn_cell.LSTMStateTuple(self.init_state_2, self.init_state_3)
-        self.init_state = (firstTuple, secondTuple)
+        first_tuple = tf.nn.rnn_cell.LSTMStateTuple(self.init_state_0, self.init_state_1)
+        second_tuple = tf.nn.rnn_cell.LSTMStateTuple(self.init_state_2, self.init_state_3)
+        self.init_state = (first_tuple, second_tuple)
 
         # initialize weight variables
         E = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0))
@@ -55,8 +55,8 @@ class MusicModel:
         first_dim = tf.reshape(first_dim, [])
         second_dim = tf.slice(dimensions, [1], [1])
         second_dim = tf.reshape(second_dim, [])
-        reshapedOutput = tf.reshape(outputs, [first_dim * second_dim, hidden_size])
-        self.logits = tf.matmul(reshapedOutput, W1) + B1
+        reshaped_output = tf.reshape(outputs, [first_dim * second_dim, hidden_size])
+        self.logits = tf.matmul(reshaped_output, W1) + B1
 
         loss = tf.nn.seq2seq.sequence_loss_by_example([self.logits], [tf.reshape(self.output, [-1])],
                                                       [tf.ones([first_dim * second_dim])])
