@@ -227,7 +227,7 @@ def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='A generative music model.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training')
+    parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training', required=True)
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
     parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
