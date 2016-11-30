@@ -8,20 +8,21 @@ import midi
 from preprocess import get_notes_from_track
 
 
+# TODO parse actual notes instead of events to get info about duration
 def note_stats(notes):
     """
-    Creates histograms for the pitch, velocity, and duration distribution of a list of note tuples
-    :param notes: A list of note tuples
-    :return: A dictionary containing histograms for 'pitch', 'velocity', and 'duration'.
+    Creates histograms for the type, pitch, and tick distribution of a list of event tuples
+    :param notes: A list of event tuples
+    :return: A dictionary containing histograms for 'type', 'pitch', and 'tick'.
     Each histogram maps {value -> count}
     """
-    pitches = [n[0] for n in notes]
-    velocities = [n[1] for n in notes]
-    durations = [n[2] for n in notes]
+    types = [n[0] for n in notes]
+    pitches = [n[1] for n in notes]
+    ticks = [n[2] for n in notes]
 
-    stats = {'pitch': frequency_dict(pitches),
-             'velocity': frequency_dict(velocities),
-             'duration': frequency_dict(durations)}
+    stats = {'type': frequency_dict(types),
+             'pitch': frequency_dict(pitches),
+             'tick': frequency_dict(ticks)}
     return stats
 
 
@@ -42,7 +43,7 @@ def print_note_stats(*stats):
     Displays a set of note stats.
     :param stats: A series of dictionaries with keys 'pitch', 'duration', and 'velocity', each mapping to a histogram.
     """
-    for prop in ['pitch', 'duration', 'velocity']:
+    for prop in ['type', 'pitch', 'tick']:
         print "Stats for %s:" % prop
         data = [s[prop] for s in stats]
         keys = sorted(set.union(set(), *[d.keys() for d in data]))
@@ -50,8 +51,15 @@ def print_note_stats(*stats):
             print "%s:\t%s" % (k, "\t".join([str(d.get(k, 0)) for d in data]))
 
 
-if __name__ == '__main__':
+def main():
+    """
+    Function for testing
+    """
     fnames = sys.argv[1:]
     notes = [get_notes_from_track(midi.read_midifile(f)[1]) for f in fnames]
-    note_stats = [note_stats(n) for n in notes]
-    print_note_stats(*note_stats)
+    stats = [note_stats(n) for n in notes]
+    print_note_stats(*stats)
+
+
+if __name__ == '__main__':
+    main()

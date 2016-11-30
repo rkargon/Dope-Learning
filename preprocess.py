@@ -4,7 +4,30 @@ Functions for converting between MIDI data and formats used by the music model, 
 
 import midi
 
+
 # TODO store notes in a class? This could unify the definition and make things clearer
+
+def midi_event_to_note_tuple(e):
+    """
+    Takes a MIDI note event and converts it to tuple form
+    :param e: A given midi event
+    :return: (event_type, pitch, tick), or None if the event is not a midi.NoteEvent.
+    """
+    if not issubclass(type(e), midi.NoteEvent):
+        return None
+    return type(e), e.pitch, e.tick
+
+
+def note_tuple_to_midi_event(et, default_velocity=64):
+    """
+    Converts an event tuple into a MIDI event
+    :param et: The given event tuple
+    :param default_velocity: Currently we ignore note velocity. Thus, we substitute in a default value
+    :return: A MIDI NoteEvent
+    """
+    event_type, pitch, tick = et
+    return event_type(pitch=pitch, tick=tick, velocity=default_velocity)
+
 
 def get_notes_from_track(track):
     """
@@ -12,27 +35,7 @@ def get_notes_from_track(track):
     :param track: A MIDI track
     :return: A series of tuples (pitch, velocity, duration)
     """
-    note_sequence = []
-    prev_event_type = None
-    tick = 0
-    for event in track:
-        event_type = type(event)
-
-        if not issubclass(event_type, midi.NoteEvent):
-            continue
-
-        if event_type == prev_event_type:
-            # TODO handle nested notes
-            # TODO handle rests
-            raise ValueError("Two events of type %s in a row" % str(event_type))
-
-        if type(event) == midi.NoteOffEvent and prev_event_type == midi.NoteOnEvent:
-            note_tuple = (event.pitch, event.velocity, event.tick)
-            note_sequence.append(note_tuple)
-
-        prev_event_type = type(event)
-        tick += event.tick
-    return note_sequence
+    return filter(None, [midi_event_to_note_tuple(e) for e in track])
 
 
 def preprocess_track(track, ids=None):
@@ -98,10 +101,8 @@ def notes_to_midi(notes, resolution=None):
     track = midi.Track()
     pattern.append(track)
 
-    for i in range(len(notes)):
-        pitch, velocity, tick = notes[i]
-        track.append(midi.NoteOnEvent(pitch=pitch, velocity=velocity, tick=0))
-        track.append(midi.NoteOffEvent(pitch=pitch, velocity=velocity, tick=tick))
+    for n in notes:
+        track.append(note_tuple_to_midi_event(n))
 
     eot = midi.EndOfTrackEvent(tick=1)
     track.append(eot)
