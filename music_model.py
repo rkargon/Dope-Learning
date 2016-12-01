@@ -1,12 +1,16 @@
 #!/usr/bin/env python2.7
 import argparse
+import logging
 
 import midi
 import numpy as np
 import tensorflow as tf
 
 from note_stats import note_stats, print_note_stats
-from preprocess import preprocess_track, notes_to_midi
+from preprocess import preprocess_track, events_to_midi, event_tuples_to_notes
+
+# get logger for current script (even across different modules)
+logger = logging.getLogger(__name__)
 
 
 class MusicModel:
@@ -88,8 +92,8 @@ def init_bias(shape, value, name):
     return tf.Variable(tf.constant(value, shape=[shape]), name=name)
 
 
-def run_model(sess, model, inputs):
-    pass
+# def run_model(sess, model, inputs):
+#     pass
 
 
 def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
@@ -103,7 +107,7 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     :param num_steps: The number of steps to unroll the RNN in training
     """
     for i in range(num_epochs):
-        print ("Epoch %d of %d" % (i + 1, num_epochs))
+        logger.info(("Training epoch %d of %d..." % (i + 1, num_epochs)))
         for track in train_data:
             total_error = 0.0
             x = 0
@@ -227,7 +231,8 @@ def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='A generative music model.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training', required=True)
+    parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training',
+                        required=True)
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
     parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
@@ -241,7 +246,11 @@ def main():
                         help='file to load a saved model from.')
     parser.add_argument('--model_save_path', type=str, default='model.ckpt',
                         help='file to save a trained model to.')
+    parser.add_argument('-l', '--log', action='store_true', default=False, help='Print out progress and other info')
     args = parser.parse_args()
+
+    if args.log:
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
     # load training data
     vocab, vocab_reverse = {}, []
@@ -249,16 +258,19 @@ def main():
     training_data = []
     training_files = args.train
     track_resolution = None
+    logger.info("Loading training data... (%d files)" % len(training_files))
     for f in training_files:
         pattern = midi.read_midifile(f)
         if track_resolution is None:
             track_resolution = pattern.resolution
         tracks = pattern[1:]
-        # TODO currently we're only getting the first track
-        track0 = tracks[0]
-        notes, vocab, vocab_reverse = preprocess_track(track0, ids=(vocab, vocab_reverse))
-        training_data.append(notes)
+        for track in tracks:
+            notes, vocab, vocab_reverse = preprocess_track(track, ids=(vocab, vocab_reverse))
+            training_data.append(notes)
+    logger.info("Read %d tracks, with %d total notes and %d unique notes." % (
+        len(training_data), sum([len(t) for t in training_data]), len(vocab)))
 
+    logger.info("Initializing model...")
     model = MusicModel(hidden_size=args.hidden_size, embedding_size=args.embedding_size,
                        learning_rate=args.learning_rate, vocab_size=len(vocab))
 
@@ -268,32 +280,38 @@ def main():
 
     # train model
     if args.model_load_path is not None:
+        logger.info("Loading model from path %s ..." % args.model_load_path)
         restore_model(sess, args.model_load_path)
 
+    logger.info("Training model...")
     train_model(sess, model, batch_size=args.batch_size, num_epochs=args.num_epochs, num_steps=args.num_steps,
                 train_data=training_data)
+    logger.info("Saving trained model to %s ..." % args.model_save_path)
     save_model(sess, args.model_save_path)
 
     # generate notes
-    generated_notes = generate_music(sess, model, num_notes=243, note_context=training_data[0])
-    print "Original Notes (first training track):"
-    print training_data[0]
-    print "Generated Notes:"
-    print generated_notes
+    generated_notes = generate_music(sess, model, num_notes=len(training_data[0]), note_context=training_data[0])
+    logger.info("Original Notes (first training track):")
+    logger.info(training_data[0])
+    logger.info("Generated Notes:")
+    logger.info(generated_notes)
 
     # write generated music to MIDI file
-    gen_note_tuples = [vocab_reverse[token] for token in generated_notes]
-    output_pattern = notes_to_midi(gen_note_tuples, resolution=track_resolution)
+    gen_event_tuples = [vocab_reverse[token] for token in generated_notes]
+    output_pattern = events_to_midi(gen_event_tuples, resolution=track_resolution)
     midi.write_midifile(args.output, output_pattern)
 
     # print stats for data
-    print "Original, Generated Stats:"
-    original_note_tuples = [vocab_reverse[t] for t in training_data[0]]
-    print_note_stats(note_stats(original_note_tuples), note_stats(gen_note_tuples))
+    logger.info("Original, Generated Stats:")
+    original_event_tuples = [vocab_reverse[t] for t in training_data[0]]
+    original_notes = event_tuples_to_notes(original_event_tuples)
+    generated_notes = event_tuples_to_notes(gen_event_tuples)
+    stats = [note_stats(original_notes), note_stats(generated_notes)]
+    print_note_stats(stats, stats_to_print=['pitch', 'duration'])
 
     # write reconstruction of original MIDI file to disk
-    print track_resolution
-    midi_pattern = notes_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
+    logger.info(track_resolution)
+    midi_pattern = events_to_midi([vocab_reverse[t] for t in training_data[0]], resolution=track_resolution)
     midi.write_midifile("reconstructed.mid", midi_pattern)
 
 

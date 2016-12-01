@@ -7,35 +7,63 @@ import midi
 
 # TODO store notes in a class? This could unify the definition and make things clearer
 
-def midi_event_to_note_tuple(e):
+def midi_event_to_tuple(e):
     """
-    Takes a MIDI note event and converts it to tuple form
+    Takes a MIDI note event and converts it to tuple form. This is used primarily to get immutable event objects that
+    can be hashed effectively.
     :param e: A given midi event
     :return: (event_type, pitch, tick), or None if the event is not a midi.NoteEvent.
     """
     if not issubclass(type(e), midi.NoteEvent):
         return None
-    return type(e), e.pitch, e.tick
+    return type(e), e.pitch, e.tick, e.velocity
 
 
-def note_tuple_to_midi_event(et, default_velocity=64):
+def tuple_to_midi_event(et):
     """
     Converts an event tuple into a MIDI event
     :param et: The given event tuple
-    :param default_velocity: Currently we ignore note velocity. Thus, we substitute in a default value
     :return: A MIDI NoteEvent
     """
-    event_type, pitch, tick = et
-    return event_type(pitch=pitch, tick=tick, velocity=default_velocity)
+    event_type, pitch, tick, velocity = et
+    return event_type(pitch=pitch, tick=tick, velocity=velocity)
 
 
-def get_notes_from_track(track):
+def event_tuples_to_notes(events):
     """
-    Converts a single MIDI track to a sequence of note tuples
+    Converts a list of MIDI event tuples into a series of notes. Each note has a pitch, MIDI 'velocity' (roughly
+    analogous to volume), duration, and start time.
+    :param events: A list of MIDI NoteOn or NoteOff event tuples
+    :return: A list of note tuples, sorted by start time.
+    """
+    notes_map = [None] * 128
+    notes = []
+    current_tick = 0
+    for e in events:
+        e_type, e_pitch, e_tick, e_velocity = e
+        current_tick += e_tick
+        if e_type is midi.NoteOnEvent:
+            notes_map[e_pitch] = (e_pitch, e_velocity, current_tick)
+        else:
+            # check if NoteOff event is triggered for note that is already off
+            # This only happens in our generated MIDI files, which might have imperfect structure.
+            if notes_map[e_pitch] is None:
+                continue
+            _, _, note_start_time = notes_map[e_pitch]
+            note = (e_pitch, e_velocity, current_tick - note_start_time, note_start_time)
+            notes.append(note)
+            notes_map[e_pitch] = None
+    notes.sort(key=lambda n: n[3])
+    return notes
+
+
+def get_events_from_track(track):
+    """
+    Extracts NoteOn and NoteOff events from a MIDI track
     :param track: A MIDI track
-    :return: A series of tuples (pitch, velocity, duration)
+    :return: A list of NoteOn and NoteOff events
     """
-    return filter(None, [midi_event_to_note_tuple(e) for e in track])
+    return filter(None, [midi_event_to_tuple(e) for e in track])
 
 
 def preprocess_track(track, ids=None):
@@ -47,7 +75,7 @@ def preprocess_track(track, ids=None):
     :return: The track as a sequence of note IDs, a dictionary mapping notes to IDs, and a list where each note's ID
     is its index.
     """
-    return build_vocabulary(get_notes_from_track(track), ids=ids)
+    return build_vocabulary(get_events_from_track(track), ids=ids)
 
 
 def build_vocabulary(tokens, ids=None):
@@ -87,23 +115,19 @@ def id_from_token(t, vocab, vocab_reverse):
         return t_id
 
 
-def notes_to_midi(notes, resolution=None):
+def events_to_midi(events, resolution=None):
     """
-    Given a set of note tuples, creates a MIDI pattern with the notes in a single track.
+    Given a set of MIDI event tuples, creates a MIDI pattern with the events in a single track.
     :param resolution: The resolution for the created MIDI pattern. If None, uses pyMIDI's default value.
-    :param notes: A series of note tuples (pitch, velocity, duration)
+    :param events: A series of NoteOn or NoteOff events
     :return: A MIDI pattern
     """
     if resolution is not None:
         pattern = midi.Pattern(resolution=resolution)
     else:
         pattern = midi.Pattern()
-    track = midi.Track()
-    pattern.append(track)
-
-    for n in notes:
-        track.append(note_tuple_to_midi_event(n))
-
+    track = midi.Track(events=[tuple_to_midi_event(e) for e in events])
     eot = midi.EndOfTrackEvent(tick=1)
+    pattern.append(track)
     track.append(eot)
     return pattern
