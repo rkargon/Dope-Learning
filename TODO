@@ -1,0 +1,12 @@
+TODO
+ - Fix issue w/ more epochs taking increasing time
+ - Analyze current (Event-based) model and generated music
+    - we're still waiting on the all-bach model to run
+    - Try putting in different starting contexts, different context lengths, etc.
+    - Create some more metrics?
+ - Make piano-roll data / download it from boulanger-lewandowski et al.
+ - Create LSTM model for piano roll data
+ - Create RBM model for piano roll data
+ - Create simple feed-forward baseline
+ - Work on presentation
+ 
