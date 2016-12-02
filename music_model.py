@@ -5,6 +5,7 @@ import logging
 import midi
 import numpy as np
 import tensorflow as tf
+import time
 
 from note_stats import note_stats, print_note_stats
 from preprocess import preprocess_track, events_to_midi, event_tuples_to_notes
@@ -107,9 +108,10 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     :param num_steps: The number of steps to unroll the RNN in training
     """
     for i in range(num_epochs):
-        logger.info(("Training epoch %d of %d..." % (i + 1, num_epochs)))
+        logger.info("Training epoch %d of %d..." % (i + 1, num_epochs))
+        start_time = time.time()
+        total_error = 0.0
         for track in train_data:
-            total_error = 0.0
             x = 0
             state1 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
             state2 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
@@ -127,6 +129,10 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
                     [model.loss, model.firstState, model.secondState, model.thirdState, model.fourthState, model.logits,
                      model.train_step], feed)
                 total_error += err
+
+        logger.info("Total error: %f" % total_error)
+        elapsed_time = time.time() - start_time
+        logger.info("Elapsed time: %f seconds..." % elapsed_time)
 
 
 # TODO this shares a lot of code with training, we might be able to abstract some of this out
@@ -246,7 +252,7 @@ def main():
                         help='file to load a saved model from.')
     parser.add_argument('--model_save_path', type=str, default='model.ckpt',
                         help='file to save a trained model to.')
-    parser.add_argument('-l', '--log', action='store_true', default=False, help='Print out progress and other info')
+    parser.add_argument('-l', '--log', action='store_true', default=True, help='Print out progress and other info')
     args = parser.parse_args()
 
     if args.log:
