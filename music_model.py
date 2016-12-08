@@ -239,6 +239,7 @@ def main():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--train', type=argparse.FileType('r'), nargs='+', help='MIDI files to use for training',
                         required=True)
+    parser.add_argument('--test_song', type=argparse.FileType('r'), nargs='+', help='MIDI song to use for testing')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for music model')
     parser.add_argument('--embedding_size', type=int, default=128, help='Embedding size for music model')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training music model')
@@ -296,7 +297,14 @@ def main():
     save_model(sess, args.model_save_path)
 
     # generate notes
-    generated_notes = generate_music(sess, model, num_notes=len(training_data[0]), note_context=training_data[0])
+    if args.test_song is not None:
+        pattern = midi.read_midifile(args.test_song)
+        tracks = pattern[1:]
+        notes, vocab, vocab_reverse = preprocess_track(tracks[0], ids=(vocab, vocab_reverse))
+        test_track = notes
+    else:
+        test_track = training_data[0]
+    generated_notes = generate_music(sess, model, num_notes=len(training_data[0]), note_context=test_track)
     logger.info("Original Notes (first training track):")
     logger.info(training_data[0])
     logger.info("Generated Notes:")
