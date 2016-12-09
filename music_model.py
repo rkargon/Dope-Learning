@@ -8,7 +8,7 @@ import tensorflow as tf
 import time
 
 from note_stats import note_stats, print_note_stats
-from preprocess import preprocess_track, events_to_midi, event_tuples_to_notes
+from preprocess import preprocess_track, events_to_midi, event_tuples_to_notes, generate_rising_scale, build_vocabulary
 
 # get logger for current script (even across different modules)
 logger = logging.getLogger(__name__)
@@ -276,6 +276,9 @@ def main():
             training_data.append(notes)
     logger.info("Read %d tracks, with %d total notes and %d unique notes." % (
         len(training_data), sum([len(t) for t in training_data]), len(vocab)))
+
+    # notes, vocab, vocab_reverse = build_vocabulary(generate_rising_scale())
+    # training_data = [notes]
 
     logger.info("Initializing model...")
     model = MusicModel(hidden_size=args.hidden_size, embedding_size=args.embedding_size,

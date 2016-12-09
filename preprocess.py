@@ -131,3 +131,14 @@ def events_to_midi(events, resolution=None):
     pattern.append(track)
     track.append(eot)
     return pattern
+
+
+def generate_rising_scale():
+    events = []
+    for i in range(10):
+        for p in range(128) + range(127, -1, -1):
+            on_tuple = (midi.NoteOnEvent, p, 0, 64)
+            off_tuple = (midi.NoteOffEvent, p, 60, 64)
+            events.append(on_tuple)
+            events.append(off_tuple)
+    return events
