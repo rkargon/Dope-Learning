@@ -8,28 +8,27 @@ import tensorflow as tf
 import time
 
 from note_stats import note_stats, print_note_stats
-from preprocess import preprocess_track, events_to_midi, event_tuples_to_notes
+from preprocess import midiToNoteStateMatrix, noteStateMatrixToMidi
 
 # get logger for current script (even across different modules)
 logger = logging.getLogger(__name__)
-
 
 class MusicModel:
     """
     An RNN-based generative model for music.
     """
 
-    def __init__(self, hidden_size, embedding_size, learning_rate, vocab_size):
+    def __init__(self, hidden_size, embedding_size, learning_rate, num_steps):
         self.hidden_size = hidden_size
         self.embedding_size = embedding_size
         self.learning_rate = learning_rate
-        self.vocab_size = vocab_size
+        self.vector_length = preprocess.span*2 # this is the dimension of a note vector
 
         self.num_layers = 2
 
         # set up placeholders
-        self.inpt = tf.placeholder(tf.int32, [None, None])
-        self.output = tf.placeholder(tf.int32, [None, None])
+        self.inpt = tf.placeholder(tf.int32, [self.vector_length, None, num_steps]) # vector of notes for a tick
+        self.output = tf.placeholder(tf.int32, [self.vector_length, None, num_steps]) # predicts the next tick of notes
         self.keep_prob = tf.placeholder(tf.float32)
 
         self.lstm = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, state_is_tuple=True)
@@ -48,7 +47,7 @@ class MusicModel:
         B1 = tf.Variable(tf.random_uniform([vocab_size], -1.0, 1.0))
 
         # build computation graph
-        embd = tf.nn.embedding_lookup(E, self.inpt)
+        embd = tf.dot
         new_embeddings = tf.nn.dropout(embd, self.keep_prob)
         outputs, state = tf.nn.dynamic_rnn(self.cell, new_embeddings, initial_state=self.init_state)
         self.firstState = state[0][0]
@@ -260,26 +259,19 @@ def main():
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
     # load training data
-    vocab, vocab_reverse = {}, []
     # list of tracks, each track will be a list of note IDs
     training_data = []
     training_files = args.train
-    track_resolution = None
     logger.info("Loading training data... (%d files)" % len(training_files))
     for f in training_files:
-        pattern = midi.read_midifile(f)
-        if track_resolution is None:
-            track_resolution = pattern.resolution
-        tracks = pattern[1:]
-        for track in tracks:
-            notes, vocab, vocab_reverse = preprocess_track(track, ids=(vocab, vocab_reverse))
-            training_data.append(notes)
-    logger.info("Read %d tracks, with %d total notes and %d unique notes." % (
-        len(training_data), sum([len(t) for t in training_data]), len(vocab)))
+        states = midiToNoteStateMatrix(f) # TxN array of states
+        training_data.append(states)
+
+    logger.info("Read %d files." % len(training_data))
 
     logger.info("Initializing model...")
     model = MusicModel(hidden_size=args.hidden_size, embedding_size=args.embedding_size,
-                       learning_rate=args.learning_rate, vocab_size=len(vocab))
+                       learning_rate=args.learning_rate)
 
     init = tf.initialize_all_variables()
     sess = tf.Session()
@@ -298,12 +290,9 @@ def main():
 
     # generate notes
     if args.test_song is not None:
-        pattern = midi.read_midifile(args.test_song)
-        tracks = pattern[1:]
-        notes, vocab, vocab_reverse = preprocess_track(tracks[0], ids=(vocab, vocab_reverse))
-        test_track = notes
+        test_track = midiToNoteStateMatrix(args.test_song)
     else:
-        test_track = training_data[0]
+        test_track = training_data[0] # first song
     generated_notes = generate_music(sess, model, num_notes=len(training_data[0]), note_context=test_track)
     logger.info("Original Notes (first training track):")
     logger.info(training_data[0])
