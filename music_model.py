@@ -107,14 +107,17 @@ def train_model(sess, model, train_data, num_epochs, batch_size, num_steps):
     :param batch_size: The batch size
     :param num_steps: The number of steps to unroll the RNN in training
     """
+    zerostate1 = model.lstm.zero_state(batch_size, tf.float32)
+    zerostate2 = model.lstm.zero_state(batch_size, tf.float32)
+
     for i in range(num_epochs):
         logger.info("Training epoch %d of %d..." % (i + 1, num_epochs))
         start_time = time.time()
         total_error = 0.0
         for track in train_data:
             x = 0
-            state1 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
-            state2 = list(sess.run(model.lstm.zero_state(batch_size, tf.float32)))
+            state1 = list(sess.run(zerostate1))
+            state2 = list(sess.run(zerostate2))
             while (x + batch_size * num_steps) < len(track):
                 inputs = track[x:x + batch_size * num_steps]
                 inputs = np.reshape(inputs, [batch_size, num_steps])
